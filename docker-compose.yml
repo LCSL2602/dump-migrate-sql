@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # Script de dump-migrate-sql
+  dump-script:
+    build: .
+    container_name: dump_migrate_script
+    environment:
+      # Configuración de conexión a PostgreSQL externo
+      # Edita estos valores según tu servidor
+      DB_HOST: ${DB_HOST:-tu_servidor_postgresql.com}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-tu_base_datos}
+      DB_USER: ${DB_USER:-tu_usuario}
+      DB_PASSWORD: ${DB_PASSWORD:-tu_contraseña}
+      
+      # Configuración del dump
+      DUMP_OUTPUT_DIR: /app/dumps
+      COMPRESS_DUMP: ${COMPRESS_DUMP:-true}
+    volumes:
+      - ./dumps:/app/dumps
+      - ./.env:/app/.env:ro
+    # Comando por defecto - mostrar ayuda
+    command: ["python", "main.py", "--help"]
+    # Para ejecutar comandos específicos, usar:
+    # docker-compose run dump-script python main.py dump
+    # docker-compose run dump-script python main.py info
+    # docker-compose run dump-script python main.py restore archivo.sql
