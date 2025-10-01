@@ -303,7 +303,6 @@ class PostgreSQLDumper:
             '-p', str(self.port),
             '-U', self.username,
             '-d', target_database,
-            '--verbose',
             '--no-password'
         ])
         
