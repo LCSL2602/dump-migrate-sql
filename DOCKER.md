@@ -77,6 +77,10 @@ docker-compose run dump-script python main.py restore dumps/dump_tu_bd_20241201_
 
 # Restaurar a una base de datos diferente
 docker-compose run dump-script python main.py restore dumps/dump_tu_bd_20241201_143022.sql --target-db nueva_bd
+
+# Sobrescribir completamente una base de datos destino
+# (crea backup de seguridad + solicita confirmación)
+docker-compose run dump-script python main.py restore dumps/dump_tu_bd_20241201_143022.sql --target-db nueva_bd --overwrite-full
 ```
 
 ### Ejecutar Ejemplos

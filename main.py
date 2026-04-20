@@ -104,7 +104,8 @@ def dump(host, port, database, username, password, output, schema_only, data_onl
 @click.option('--password', default=None, help='Contraseña de la base de datos')
 @click.argument('dump_file', type=click.Path(exists=True))
 @click.option('--target-db', help='Base de datos de destino (por defecto usa la misma)')
-def restore(host, port, database, username, password, dump_file, target_db):
+@click.option('--overwrite-full', is_flag=True, help='Sobrescribe completamente la DB destino (con backup de seguridad previo)')
+def restore(host, port, database, username, password, dump_file, target_db, overwrite_full):
     """Restaurar un dump de la base de datos PostgreSQL"""
     
     # Usar configuración por defecto si no se especifican parámetros
@@ -136,6 +137,36 @@ def restore(host, port, database, username, password, dump_file, target_db):
             
             target_database = target_db or config.database
             click.echo(f"Restaurando {dump_file} en {target_database}...")
+
+            if overwrite_full:
+                config.create_dump_directory()
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_file = os.path.join(
+                    config.dump_output_dir,
+                    f"backup_before_overwrite_{target_database}_{timestamp}.sql.gz"
+                )
+
+                click.echo("\n⚠️  MODO SOBRESCRITURA TOTAL ACTIVADO")
+                click.echo(f"Se creará backup de seguridad en: {backup_file}")
+                click.echo(f"Luego se eliminará y recreará la base de datos destino: {target_database}")
+                click.confirm("¿Estás seguro que quieres continuar?", default=False, abort=True)
+
+                click.echo("\n🔒 Creando backup de seguridad antes de sobrescribir...")
+                backup_success = dumper.backup_database(
+                    database_name=target_database,
+                    output_file=backup_file,
+                    compress=True
+                )
+
+                if not backup_success:
+                    click.echo("❌ No se pudo crear el backup de seguridad. Operación cancelada.", err=True)
+                    return
+
+                click.echo("🧹 Eliminando y recreando base de datos destino...")
+                recreate_success = dumper.recreate_database(target_database)
+                if not recreate_success:
+                    click.echo("❌ No se pudo recrear la base de datos destino. Operación cancelada.", err=True)
+                    return
             
             success = dumper.restore_dump(dump_file, target_database)
             

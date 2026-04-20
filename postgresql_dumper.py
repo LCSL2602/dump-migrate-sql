@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import Optional, Dict, Any
 import psycopg2
+from psycopg2 import sql
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 
@@ -267,6 +268,127 @@ class PostgreSQLDumper:
         except Exception as e:
             self.logger.error(f"Error inesperado durante el dump personalizado: {e}")
             return False
+
+    def backup_database(self, database_name: str, output_file: str, compress: bool = True) -> bool:
+        """
+        Crea un backup de seguridad de una base de datos específica antes de sobrescribirla.
+
+        Args:
+            database_name: Base de datos a respaldar
+            output_file: Archivo de salida para el backup
+            compress: Si True, comprime el archivo de salida
+
+        Returns:
+            bool: True si el backup se creó exitosamente, False en caso contrario
+        """
+        cmd = [
+            'pg_dump',
+            '-h', self.host,
+            '-p', str(self.port),
+            '-U', self.username,
+            '-d', database_name,
+            '--verbose',
+            '--no-password'
+        ]
+
+        env = os.environ.copy()
+        env['PGPASSWORD'] = self.password
+
+        try:
+            self.logger.info(f"Creando backup de seguridad de {database_name}...")
+
+            if compress and output_file.endswith('.gz'):
+                import gzip
+                with gzip.open(output_file, 'wt', encoding='utf-8') as f:
+                    subprocess.run(
+                        cmd,
+                        stdout=f,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        env=env,
+                        check=True
+                    )
+            else:
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    subprocess.run(
+                        cmd,
+                        stdout=f,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        env=env,
+                        check=True
+                    )
+
+            file_size = os.path.getsize(output_file)
+            size_mb = file_size / (1024 * 1024)
+            self.logger.info(f"Backup de seguridad completado: {output_file} ({size_mb:.2f} MB)")
+            return True
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Error al crear backup de seguridad: {e}")
+            self.logger.error(f"Stderr: {e.stderr}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error inesperado al crear backup de seguridad: {e}")
+            return False
+
+    def recreate_database(self, database_name: str) -> bool:
+        """
+        Elimina y recrea una base de datos para permitir una restauración limpia.
+
+        Args:
+            database_name: Nombre de la base de datos a recrear
+
+        Returns:
+            bool: True si se recreó exitosamente, False en caso contrario
+        """
+        maintenance_db = 'template1' if database_name == 'postgres' else 'postgres'
+        connection = None
+        cursor = None
+
+        try:
+            connection = psycopg2.connect(
+                host=self.host,
+                port=self.port,
+                database=maintenance_db,
+                user=self.username,
+                password=self.password
+            )
+            connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            cursor = connection.cursor()
+
+            self.logger.warning(f"Recreando base de datos {database_name}...")
+
+            cursor.execute(
+                """
+                SELECT pg_terminate_backend(pid)
+                FROM pg_stat_activity
+                WHERE datname = %s
+                AND pid <> pg_backend_pid();
+                """,
+                (database_name,)
+            )
+
+            cursor.execute(sql.SQL("DROP DATABASE IF EXISTS {};").format(sql.Identifier(database_name)))
+            cursor.execute(
+                sql.SQL("CREATE DATABASE {} OWNER {};").format(
+                    sql.Identifier(database_name),
+                    sql.Identifier(self.username)
+                )
+            )
+
+            self.logger.info(f"Base de datos {database_name} recreada exitosamente")
+            return True
+        except psycopg2.Error as e:
+            self.logger.error(f"Error al recrear base de datos {database_name}: {e}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error inesperado al recrear base de datos {database_name}: {e}")
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
     
     def restore_dump(self, dump_file: str, target_database: Optional[str] = None) -> bool:
         """

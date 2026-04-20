@@ -26,3 +26,4 @@ services:
     # docker-compose run dump-script python main.py dump
     # docker-compose run dump-script python main.py info
     # docker-compose run dump-script python main.py restore archivo.sql
+    # docker-compose run dump-script python main.py restore archivo.sql --target-db nueva_bd --overwrite-full

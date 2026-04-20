@@ -125,6 +125,11 @@ python main.py restore dump_mi_bd_20241201_143022.sql
 python main.py restore dump_mi_bd_20241201_143022.sql --target-db nueva_base_datos
 ```
 
+**Sobrescribir completamente una base de datos destino (con backup automático de seguridad y confirmación)**:
+```bash
+python main.py restore dump_mi_bd_20241201_143022.sql --target-db nueva_base_datos --overwrite-full
+```
+
 **Restaurar dump en formato personalizado**:
 ```bash
 python main.py restore dump_mi_bd_20241201_143022.dump
